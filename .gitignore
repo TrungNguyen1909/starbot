@@ -57,3 +57,4 @@ __debug_bin
 /starbot
 .env
 .secrets.yml
+.docker-compose.yml
