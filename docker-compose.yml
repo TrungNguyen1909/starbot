@@ -1,0 +1,11 @@
+version: '3.7'
+
+services: 
+    web:
+        container_name: starbot
+        image: ntrung03/starbot:latest
+        restart: always
+        environment: 
+            - DISCORD_TOKEN=${DISCORD_TOKEN}
+            - MONGO_URI=${MONGO_URI}
+            - DBNAME=${DBNAME}
