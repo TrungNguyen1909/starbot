@@ -279,7 +279,7 @@ func channelPin(s *discordgo.Session, m *discordgo.ChannelPinsUpdate) {
 					MirrorID:        msg.ID,
 				})
 				if dbName != "dev" {
-					s.ChannelMessageUnpin(m.ChannelID, m.ID)
+					defer s.ChannelMessageUnpin(m.ChannelID, m.ID)
 				}
 			}
 		}
