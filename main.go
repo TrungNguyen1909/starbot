@@ -131,6 +131,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, "Please run s!setup on this guild.")
 			return
 		}
+		s.ChannelMessageSend(m.ChannelID, "Moving channel's pinned messages. Please standby...")
 		channelPin(s, &discordgo.ChannelPinsUpdate{ChannelID: m.ChannelID, GuildID: m.GuildID})
 		s.ChannelMessageSend(m.ChannelID, "Migrated this channel's pinned messages to Starboard successfully")
 		return
@@ -193,6 +194,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		return
 	}
+	if m.Content == "s!fmigrate" {
+		s.ChannelMessageSend(m.ChannelID, "Migrating from file. Please standby...")
+		if len(m.Attachments) != 1 {
+			s.ChannelMessageSend(m.ChannelID, "Please attach list containing line-separated space-separated channel IDs, message IDs to migrate to starboard.")
+			return
+		}
+		resp, err := s.Client.Get(m.Attachments[0].URL)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, "Failed to download attachment")
+		}
+		defer resp.Body.Close()
+		var channelID, id string
+		messages := make([]*discordgo.Message, 0)
+		for n, err := fmt.Fscanf(resp.Body, "%s %s\n", &channelID, &id); n == 2 && err == nil; n, err = fmt.Fscanf(resp.Body, "%s %s\n", &channelID, &id) {
+			m, err := s.ChannelMessage(channelID, id)
+			if err == nil && m != nil {
+				messages = append(messages, m)
+			}
+		}
+		postMessageList(s, m.GuildID, messages)
+		s.ChannelMessageSend(m.ChannelID, "Migrated messages list to Starboard successfully")
+		return
+	}
 	if m.Content == "s!help" {
 		e := &discordgo.MessageEmbed{
 			Author:      &discordgo.MessageEmbedAuthor{Name: fmt.Sprintf("Hi %s, I'm %s", m.Author.Username, s.State.User.Username)},
@@ -235,9 +259,16 @@ func channelPin(s *discordgo.Session, m *discordgo.ChannelPinsUpdate) {
 	if err != nil {
 		return
 	}
-	//TODO: context timeout
+	rMessages := make([]*discordgo.Message, len(messages))
+	for i, v := range messages {
+		rMessages[len(messages)-i-1] = v
+	}
+	postMessageList(s, m.GuildID, rMessages)
+}
+func postMessageList(s *discordgo.Session, GuildID string, messages []*discordgo.Message) {
+	var err error
 	var g Guild
-	err = guildsDb.FindOne(context.Background(), bson.D{{"id", m.GuildID}}).Decode(&g)
+	err = guildsDb.FindOne(context.Background(), bson.D{{"id", GuildID}}).Decode(&g)
 	if err != nil {
 		log.Println(err)
 		return
@@ -284,5 +315,5 @@ func channelPin(s *discordgo.Session, m *discordgo.ChannelPinsUpdate) {
 			}
 		}
 	}
-	guildsDb.UpdateOne(context.Background(), bson.D{{"id", m.GuildID}}, bson.D{{"$set", bson.D{{Key: "pinned_messages", Value: g.PinnedMessages}}}})
+	guildsDb.UpdateOne(context.Background(), bson.D{{"id", GuildID}}, bson.D{{"$set", bson.D{{Key: "pinned_messages", Value: g.PinnedMessages}}}})
 }
